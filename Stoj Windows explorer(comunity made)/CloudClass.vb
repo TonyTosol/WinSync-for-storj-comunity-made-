@@ -108,6 +108,7 @@ Public Class CloudClass
                 If DownloadOperation.Completed Then
                     File.WriteAllBytes(path & DownloadOperation.ObjectName.Split("/").Last, DownloadOperation.DownloadedBytes)
                     RaiseEvent cloudmessage(1, DownloadOperation.ObjectName.Split("/").Last)
+                    DownloadOperation.Dispose()
                 End If
             Catch ex As Exception
                 RaiseEvent cloudmessage(2, ex.Message)

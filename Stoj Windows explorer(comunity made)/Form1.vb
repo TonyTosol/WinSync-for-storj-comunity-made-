@@ -20,7 +20,7 @@ Public Class Form1
     Private AccessGrand As String = ""
     Private FileViewSelected As TreeNode
     Private BgSync As BackgroundSyncClass
-
+    Private cloasing As Boolean = False
 
     Private Sub ConnectToolStripMenuItem_ClickAsync(sender As Object, e As EventArgs) Handles ConnectToolStripMenuItem.Click
         If My.Settings.APIKey = "" Then
@@ -31,7 +31,9 @@ Public Class Form1
 
         End If
     End Sub
-
+    Private Sub checkcloasing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+        cloasing = True
+    End Sub
     Private Sub sync()
         If Cloud.Accessgrant = "" Then Cloud.Accessgrant = AccessGrand
         If Cloud.Accessgrant <> "" Then
@@ -211,10 +213,21 @@ Public Class Form1
         If SyncList.Items.Count > 0 Then
 
             BgSync = New BackgroundSyncClass(AccessGrand)
+            AddHandler BgSync.SyncComplete, AddressOf resumeSync
             Dim thread As New Thread(AddressOf BgSync.Start)
             thread.Start(SyncList.Items)
 
         End If
+    End Sub
+    Private Sub resumeSync()
+        sync()
+        Threading.Thread.Sleep(60000) : Application.DoEvents()
+        If cloasing Then
+        Else
+            Dim thread As New Thread(AddressOf BgSync.Start)
+            thread.Start(SyncList.Items)
+        End If
+
     End Sub
     Private Sub ShowCloudMessage(msgType As Integer, msg As String)
         Select Case msgType

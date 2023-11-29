@@ -13,30 +13,39 @@ Public Class BackgroundSyncClass
     Public Accessgrant As String = ""
     Public Event cloudmessage(msgType As Integer, filename As String) ''1=download complete, 2= download error, 3= delete complete, 4= delete error
     Private syncoptions As String
+    Public Event SyncComplete()
 
     Public Sub New(acg As String)
         Accessgrant = acg
-
         InitConnection()
 
-
-
-
     End Sub
-    Public Sub Start(items As ObjectCollection)
-        For Each item As String In items
-            Select Case CInt(item.Split("*").Last)
+    Public Sub Start(ByVal Syncitems As ObjectCollection)
+        For Each syncitem As String In Syncitems
+            Select Case CInt(syncitem.Split("*").Last)
                 Case 2
-                    syncoptions = item
-                    SyncObjectsToCloud()
+                    syncoptions = syncitem
+                    Try
+                        SyncObjectsToCloud()
+                    Catch ex As Exception
+                        MsgBox("eeror on upload")
+                    End Try
+
 
                 Case 3
-                    syncoptions = item
-                    SyncObjectsToPC()
+                    syncoptions = syncitem
+                    Try
+                        SyncObjectsToPC()
+                    Catch ex As Exception
+                        MsgBox("eeror on download")
+                    End Try
+
+
 
 
             End Select
         Next
+        RaiseEvent SyncComplete()
     End Sub
     Public Sub InitConnection()
 
@@ -106,6 +115,7 @@ Public Class BackgroundSyncClass
             If DownloadOperation.Completed Then
                 File.WriteAllBytes(path & "\" & DownloadOperation.ObjectName.Split("/").Last, DownloadOperation.DownloadedBytes)
                 RaiseEvent cloudmessage(1, DownloadOperation.ObjectName.Split("/").Last)
+                DownloadOperation.Dispose()
             End If
         Catch ex As Exception
             RaiseEvent cloudmessage(2, ex.Message)
@@ -115,9 +125,12 @@ Public Class BackgroundSyncClass
     Private Async Sub UploadFile(bk As Bucket, name As String, path As String)
         Try
             Dim fs As FileStream = File.Open(name, FileMode.Open, FileAccess.Read, FileShare.None)
-            Dim uploadOperation = Await ObjServ.UploadObjectAsync(bk, path, New UploadOptions, fs, True)
+            Dim uploadOperation = Await ObjServ.UploadObjectAsync(bk, path, New UploadOptions, fs, False)
+            Await uploadOperation.StartUploadAsync
+            fs.Close()
+            uploadOperation.Dispose()
         Catch ex As Exception
-            MsgBox(ex.Message)
+
         End Try
     End Sub
     Private Async Sub SyncObjectsToCloud()
@@ -140,16 +153,21 @@ Public Class BackgroundSyncClass
                 Dim match As Boolean = False
                 For Each item As [Object] In ObjList.Items
 
-                    If String.Compare(item.Key, cloudfile) = 0 Then
+                    If String.Compare(item.Key, cloudfile.TrimStart("/")) = 0 Then
                         match = True
                         Exit For
                     End If
                 Next
                 If match Then
                 Else
-                    UploadFile(Bkt, file, syncoptions.Split("*")(1) & cloudfile.Replace("/", ""))
+                    Dim cloudfilepath As String = cloudfile
+                    If syncoptions.Split("*")(1) = "" Then
+                        cloudfilepath = cloudfile.TrimStart("/")
+                    End If
+                    UploadFile(Bkt, file, syncoptions.Split("*")(1) & cloudfilepath)
+                    Thread.Sleep(5000) : Application.DoEvents() ' to make some breath time for cpu and network
                 End If
-                Thread.Sleep(5000) ' to make some breath time for cpu and network
+
             Next
 
         End If
